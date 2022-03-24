@@ -23,3 +23,4 @@ sudo -u mob_app_user bash -c 'cd /home/mob_app_user/ && source /home/mob_app_use
 
 #making new migrations into database
 python3 /home/mob_app_user/Mobalysis/backend/manage.py makemigrations
+python3 /home/mob_app_user/Mobalysis/backend/manage.py migrate
