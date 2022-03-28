@@ -1,0 +1,184 @@
+---
+# Start play 1
+
+- name: Installing AWS infrastructure components
+  hosts: localhost
+  connection: local
+  gather_facts: False
+  tags: provisioning
+  
+  vars:
+    instance_type: t2.micro
+    security_group: mobalysis
+    image_id: ami-04505e74c0741db8d
+    region: us-east-1
+    keypair: project
+    count: 1
+    
+  tasks:
+    - name: Create a security group on the default VPC
+      local_action:
+        module: ec2_group
+        name: "{{ security_group }}"
+        description: security group for new EC2 instance
+        region: "{{ region }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 80
+              - 443
+              - 22
+            cidr_ip:  0.0.0.0/0
+        rules_egress:
+          - proto: all
+            cidr_ip: 0.0.0.0/0
+
+    - name: Launch an EC2 instance in the default subnet on the default VPC
+      local_action:
+        module: ec2_instance
+        security_group: "{{ security_group }}"
+        instance_type : "{{ instance_type }}"
+        image_id: "{{ image_id }}"
+        region: "{{ region }}"
+        key_name: "{{ keypair }}"
+        wait: true
+        wait_timeout: 600
+        tags:
+          Name: "webserver01"
+      register: server_instances
+
+    - name: Wait for SSH connectivity to come up on the EC2 instance
+      wait_for:
+        host: "{{ item.public_ip_address }}"
+        port: 22
+        delay: 10
+      with_items: "{{ server_instances.instances }}"
+
+    - name: Add the new EC2 instance to the mobalysis hosts groups
+      add_host:
+        name: "{{ item.public_ip_address }}"
+        groups: mobalysis_host
+      with_items: "{{ server_instances.instances }}"
+
+# End of play 1
+
+# Start play 2 - Configuring the EC2 Remote Node(s)
+
+- name: Provisioning the Remote Node
+  hosts: mobalysis_host
+  become: true
+  become_user: root
+  gather_facts: false
+  vars:
+#    application_user: mob_app_usr
+    db_user: mob_db_user
+    db_name: mobalytics
+    db_password: mob_db_password
+
+  tasks:
+    - name: Check for connectivity to servers
+      ping:
+
+#    - name: create the OS application user
+#      user:
+#        name: "{{ application_user }}"
+#        state: present
+
+# Add the rest of the configuration plays
+
+    - name: Create a User.
+      user:
+        name: mob_app_user
+        state: present
+        password: $6$waVkz./Gs9K6.TYW$npZXuU3vRcNTWMwL3j5TDqVbt72VnCSFJD1ZH5GTSGVwAoEg93sv7IzdBjQheqjrYBv4w7rF90w5gthFQjF/u1
+        shell: /bin/bash
+
+    - name: Update and upgrade apt packages
+      become: true
+      apt:
+        upgrade: yes
+        update_cache: yes
+        cache_valid_time: 86400 #One day
+       
+    - name: Install reqired packages
+      apt: name={{ item }} state=present
+      with_items:
+       - git
+       - curl
+       - python3
+       - python3-venv
+       - python3-pip
+       - nodejs
+       - nginx
+       - postgresql	
+       
+    - name: Install django version 3.0.0
+      pip:
+        name: django==3.0.0
+       
+      
+    - name: Clone a github repository
+      git:
+        repo: https://github.com/aderinto-wahab/Mobalysis.git
+        dest: /home/mob_app_user/Mobalysis    
+        clone: yes
+        update: yes
+       
+    - name: Install dependencies for PostgreSQL
+      apt: name={{ item }} update_cache=true state=latest
+      with_items:
+       - bash
+       - acl
+       - openssl
+       - libssl-dev
+       - libssl-doc
+     
+    - name: Install PostgreSQL
+      apt: name={{ item }} update_cache=true state=present
+      with_items:
+       - postgresql
+       - postgresql-contrib
+       - libpq-dev
+       - python3-psycopg2
+     
+    - name: Ensure the PostgreSQL service is running
+      service: name=postgresql state=started enabled=yes
+    
+    - name: Create the database specified in vars
+      become: true
+      become_user: postgres
+      postgresql_db: name={{ db_name }}
+           template='template0'
+           state=present
+         
+    - name: Ensure user has access to the new database
+      become: true
+      become_user: postgres
+      postgresql_user: db={{ db_name }}
+           name={{ db_user }}
+           password={{ db_password }}
+           priv=ALL
+           state=present
+
+    - name: Adding environment variable to a file
+      blockinfile:
+        dest: /home/mob_app_user/.bashrc
+        block: |
+         export DBUSER='mob_db_user'
+         export DBPASS='mob_db_pass'
+         export DBHOST='localhost'
+         export DBPORT='5432'
+        backup: yes
+
+    - name: Install virtualenv module
+      pip:
+        name: virtualenv
+        state: latest
+       
+    - name: Manually create the initial virtualenv
+      pip:
+        name: env
+        virtualenv: /home/mob_app_user/env
+        state: latest
+       
+# End of play 2
