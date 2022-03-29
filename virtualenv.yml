@@ -13,3 +13,7 @@
        name: env
        virtualenv: /home/mob_app_user/env
        state: latest
+   - name: Install specified python requirements in indicated (virtualenv)
+      pip:
+       requirements: /home/mob_app_user/Mobalysis/backend/requirements.txt
+       virtualenv: /home/mob_app_user/env
