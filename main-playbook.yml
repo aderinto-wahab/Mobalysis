@@ -70,7 +70,7 @@
   become_user: root
   gather_facts: false
   vars:
-#    application_user: mob_app_usr
+#    application_user: mob_app_user
     db_user: mob_db_user
     db_name: mobalytics
     db_password: mob_db_password
@@ -78,6 +78,8 @@
   tasks:
     - name: Check for connectivity to servers
       ping:
+      async: 30
+      poll: 30
 
 #    - name: create the OS application user
 #      user:
@@ -95,8 +97,8 @@
 
     - name: Update and upgrade apt packages
       become: true
-      async: 300
-      poll: 300
+      async: 180
+      poll: 180
       apt:
         upgrade: yes
         update_cache: yes
@@ -114,10 +116,10 @@
        - nginx
        - postgresql	
        
-    - name: Install django version 3.0.0
+    - name: Install django
       pip:
-        name: django==3.0.0
-       
+        name: 
+         - django==3.1.2
       
     - name: Clone a github repository
       git:
@@ -125,7 +127,14 @@
         dest: /home/mob_app_user/Mobalysis    
         clone: yes
         update: yes
-       
+
+    - name: Change file ownership, group and permissions for manage.py
+      ansible.builtin.file:
+         path: /home/mob_app_user/Mobalysis/backend/manage.py
+         owner: mob_app_user
+         group: mob_app_user
+         mode: '0644'    
+         
     - name: Install dependencies for PostgreSQL
       apt: name={{ item }} update_cache=true state=latest
       with_items:
@@ -134,10 +143,6 @@
        - openssl
        - libssl-dev
        - libssl-doc
-     
-    - name: Install PostgreSQL dependencies
-      apt: name={{ item }} update_cache=true state=present
-      with_items:
        - postgresql-contrib
        - libpq-dev
        - python3-psycopg2
@@ -186,6 +191,11 @@
       pip:
        requirements: /home/mob_app_user/Mobalysis/backend/requirements.txt
        virtualenv: /home/mob_app_user/env
-       
+ 
+    - name: Django migrate
+      django_manage: 
+        command: migrate
+         app_path: "{{/home/mob_app_user/Mobalysis/backend/manage.py}}"
+         virtualenv: "{{/home/mob_app_user/env}}"
        
 # End of play 2
