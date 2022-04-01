@@ -195,7 +195,7 @@
     - name: Django migrate
       django_manage: 
         command: migrate
-         app_path: "{{/home/mob_app_user/Mobalysis/backend/manage.py}}"
-         virtualenv: "{{/home/mob_app_user/env}}"
+        app_path: "{{/home/mob_app_user/Mobalysis/backend/manage.py}}"
+        virtualenv: "{{/home/mob_app_user/env}}"
        
 # End of play 2
