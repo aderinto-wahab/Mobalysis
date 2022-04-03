@@ -73,13 +73,11 @@
 #    application_user: mob_app_user
     db_user: mob_db_user
     db_name: mobalytics
-    db_password: mob_db_password
+    db_password: mob_db_pass
 
   tasks:
     - name: Check for connectivity to servers
       ping:
-      async: 30
-      poll: 30
 
 #    - name: create the OS application user
 #      user:
@@ -120,21 +118,7 @@
       pip:
         name: 
          - django==3.1.2
-      
-    - name: Clone a github repository
-      git:
-        repo: https://github.com/aderinto-wahab/Mobalysis.git
-        dest: /home/mob_app_user/Mobalysis    
-        clone: yes
-        update: yes
-
-    - name: Change file ownership, group and permissions for manage.py
-      ansible.builtin.file:
-         path: /home/mob_app_user/Mobalysis/backend/manage.py
-         owner: mob_app_user
-         group: mob_app_user
-         mode: '0644'    
-         
+            
     - name: Install dependencies for PostgreSQL
       apt: name={{ item }} update_cache=true state=latest
       with_items:
@@ -146,6 +130,15 @@
        - postgresql-contrib
        - libpq-dev
        - python3-psycopg2
+       
+    - name: Clone a github repository
+      become: true
+      become_user: mob_app_user
+      git:
+        repo: https://github.com/aderinto-wahab/Mobalysis.git
+        dest: /home/mob_app_user/Mobalysis    
+        clone: yes
+        update: yes
      
     - name: Ensure the PostgreSQL service is running
       service: name=postgresql state=started enabled=yes
@@ -171,6 +164,7 @@
         dest: /home/mob_app_user/.bashrc
         block: |
          export DBUSER='mob_db_user'
+         export DBNAME='mobalytics'
          export DBPASS='mob_db_pass'
          export DBHOST='localhost'
          export DBPORT='5432'
